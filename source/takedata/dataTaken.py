@@ -1,4 +1,3 @@
-from hashlib import new
 import sys, signal, json
 import time as t
 import threading as th
@@ -11,7 +10,6 @@ class trackingData():
     timer=None
     dataTake=None
     pares=None
-
     def init():
         trackingData.UpdatePares()
         signal.signal(signal.SIGINT, trackingData.letsexit)
@@ -21,6 +19,11 @@ class trackingData():
         t.sleep((60-t.time()%60)+0) #sleep to the start of next min
         trackingData.run()
 
+    def run():
+        trackingData.timer=th.Timer(60,trackingData.run)
+        trackingData.timer.start()
+        trackingData.getData()
+
     def UpdatePares():
         config.refresh()
         new_pares=config.getlist('DataTake','data_crypto')
@@ -29,46 +32,66 @@ class trackingData():
         trackingData.pares=config.getlist('DataTake','data_crypto')
         trackingData.dataTake=data_TradingV(cryptosymbol=trackingData.pares ,timeout=2)
 
-    def run():
-        trackingData.timer=th.Timer(60,trackingData.run)
-        trackingData.timer.start()
-        trackingData.getData()
-    
     def getData():
+        trys=0
         intervals=trackingData.getIntervals()
-        #print("take "+str(intervals),end="\n")
         validator=trackingData.resetValidator(intervals)
         dataF=trackingData.dataTake.get_indicators(intervals,config.getlist('DataTake','indicators'))
-        #print(datetime.fromtimestamp(dataF['timestamp']).strftime('%H:%M %S.%f')+"\tChecking",end="\t")
+        print("NEW CYCLE ->"+str(intervals)+" - "+str(datetime.now()),end="\n")
+        trackingData.prinTitle(intervals)
         while((int(t.time()%60)<config.getint('DataTake','secLimit'))and(trackingData.checkValidator(validator))):
-            t.sleep(2)
+            t.sleep(5)
+            trys=trys+1
             dataS=trackingData.dataTake.get_indicators(intervals,config.getlist('DataTake','indicators'))
             if(dataF!=False and dataS != False):
                 validator=trackingData.checkDatas(dataF,dataS,validator)
-                #print(datetime.fromtimestamp(dataF['timestamp']).strftime('%H:%M %S.%f')+"\tChecking",end="\t")
             if(dataS != False):
                 dataF=dataS
         if(trackingData.checkValidator(validator)==True):
             print("Error en Captura "+str(config.getint('DataTake','secLimit'))+"secL "+str(datetime.now()),end="\n")
-            print(json.dumps(validator, indent=4))
-        #Actulizar lista de pares        
+            trackingData.printValidator(validator)
+            print("")
+        else:
+            print("all Data was taken "+str(datetime.now()))
+        #Actulizar lista de pares 
         trackingData.UpdatePares()
 
+    def prinTitle(temps):
+        print('{:^21}|{:^3}|'.format('PAR','N'),end="")
+        for temp in temps:
+            print('{:^30}|'.format(temp),end="")
+        print("")
+        print('{:^21}|{:^3}|'.format('PAR','N'),end="")
+        for x in range(len(temps)):
+            print('{:^10}|{:^10}|{:^8}|'.format('close','open','vol'),end="")
+        print ("")
+        
+    def printRow(val,data,par,intento):
+        print('{:^21}|{:^3}|'.format(par,intento),end="")
+        for temp in data[par]:
+            if(val[par][temp]==False):
+                print('{:^10}|{:^10}|{:^8}|'.format(data[par][temp]["close"],data[par][temp]["open"],round(data[par][temp]["volume"])),end="")
+            else:
+                print('{:^10}|{:^10}|{:^8}|'.format("--","Sended","--"),end="")
+        print(datetime.fromtimestamp(data['timestamp']).strftime('%H:%M %S.%f'),end="\n")
+
     def checkDatas(first,second,validator):
-        for par in second:
-            if(par!="timestamp"):
-                for temp in second[par]:
-                    if(first[par][temp]['volume']>second[par][temp]['volume']):
-                        if(second[par][temp]['open']==second[par][temp]['close']):
-                            #print("\t"+par+":"+temp+"-"+str(second[par][temp]['open'])+"=="+str(second[par][temp]['close']),end="")
-                            #print("\t"+str(first[par][temp]['volume'])+"=="+str(second[par][temp]['volume'])+"? True",end=" ")
-                            if(validator[par][temp]==False):
-                                first[par][temp]['close']=second[par][temp]['open']
-                                trackingData.sendData(par,temp,first[par][temp],first['timestamp'])
-                                #Se envia first[par][temp] a DB y a analisis
-                                #print(" SEND",end="")
-                                validator[par][temp]=True
-                            #print("")
+        for par in trackingData.pares:
+            trackingData.printRow(validator,first,par,1)
+            trackingData.printRow(validator,second,par,2)
+            print('{:^21}|{:^3}|'.format("Analisis",'R'),end="")
+            for temp in second[par]:
+                if((first[par][temp]['volume']>second[par][temp]['volume']) and (second[par][temp]['open']==second[par][temp]['close'])):
+                    if(validator[par][temp]==False):
+                        first[par][temp]['close']=second[par][temp]['open']
+                        validator[par][temp]=True
+                        trackingData.sendData(par,temp,first[par][temp],first['timestamp'])
+                        print('{:^10}|{:^10}|{:^8}|'.format("\033[4mSEND IT   \033[0m",round(second[par][temp]["close"]-second[par][temp]["open"]),round(second[par][temp]["volume"]-first[par][temp]["volume"])),end="")            
+                    else:
+                        print('{:^10}|{:^10}|{:^8}|'.format("--!!--","--!!--","--!!--"),end="")
+                else:
+                    print('{:^10}|{:^10}|{:^8}|'.format("WAIT!!!",round(second[par][temp]["close"]-second[par][temp]["open"]),round(second[par][temp]["volume"]-first[par][temp]["volume"])),end="")            
+            print("")
         return validator
 
     def checkValidator(validator):
@@ -78,6 +101,16 @@ class trackingData():
                 if(validator[par][temp]==False):
                     keepChecking=True
                     #print("Falta->"+par+temp+":"+str(validator[par][temp]),end="|")
+        #print("")
+        return keepChecking
+    
+    def printValidator(validator):
+        keepChecking=False
+        for par in validator:
+            for temp in validator[par]:
+                if(validator[par][temp]==False):
+                    keepChecking=True
+                    print("Falta->"+par+temp+":"+str(validator[par][temp]),end=" | ")
         #print("")
         return keepChecking
 
@@ -91,14 +124,14 @@ class trackingData():
 
     def getIntervals():
         min=int(t.time()/60)
-        if(min%1440==0):
-            return ['1m','5m','15m','30m','1h','2h','4h','1d']
+        #if(min%1440==0):
+        #    return ['1m','5m','15m','30m','1h','2h','4h','1d']
         if(min%240==0):
             return ['1m','5m','15m','30m','1h','2h','4h']
         if(min%120==0):
             return ['1m','5m','15m','30m','1h','2h']
         if(min%60==0):
-            return ['1m','5m','15m','30m','1h']
+            return ['1m','5m','15m','30m','1h','1d']
         if(min%30==0):
             return ['1m','5m','15m','30m']
         if(min%15==0):
@@ -142,9 +175,8 @@ class trackingData():
         sys.exit(0)
 
 if __name__ == '__main__':
-    par=["BINANCE:BTCBUSDPERP"]
     #par=['BINANCE:BTCBUSDPERP','BINANCE:ETHBUSDPERP','BINANCE:BNBBUSDPERP','BINGX:BTCUSDT']
-    trackingData.init(par)
+    trackingData.init()
     #config.refresh()
     #trackingData(pares=config.getlist('DataTake','data_crypto'),pprint=True)
    

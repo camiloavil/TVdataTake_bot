@@ -1,0 +1,4 @@
+config.cfg
+source/config/__pycache__/
+source/takedata/__pycache__/
+source/db/__pycache__/
