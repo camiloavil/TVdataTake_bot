@@ -127,11 +127,11 @@ class trackingData():
         #if(min%1440==0):
         #    return ['1m','5m','15m','30m','1h','2h','4h','1d']
         if(min%240==0):
-            return ['1m','5m','15m','30m','1h','2h','4h']
+            return ['1m','5m','15m','30m','1h','2h','4h','1d']
         if(min%120==0):
             return ['1m','5m','15m','30m','1h','2h']
         if(min%60==0):
-            return ['1m','5m','15m','30m','1h','1d']
+            return ['1m','5m','15m','30m','1h']
         if(min%30==0):
             return ['1m','5m','15m','30m']
         if(min%15==0):
