@@ -86,7 +86,7 @@ class trackingData():
                         first[par][temp]['close']=second[par][temp]['open']
                         validator[par][temp]=True
                         trackingData.sendData(par,temp,first[par][temp],first['timestamp'])
-                        print('{:^10}|{:^10}|{:^8}|'.format("--SEND IT--",round(second[par][temp]["close"]-second[par][temp]["open"]),round(second[par][temp]["volume"]-first[par][temp]["volume"])),end="")            
+                        print('{:^10}|{:^10}|{:^8}|'.format("--SEND IT-",round(second[par][temp]["close"]-second[par][temp]["open"]),round(second[par][temp]["volume"]-first[par][temp]["volume"])),end="")            
                     else:
                         print('{:^10}|{:^10}|{:^8}|'.format("--!!--","--!!--","--!!--"),end="")
                 else:
