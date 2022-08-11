@@ -1,126 +1,93 @@
-import sys, signal, json
+import sys, signal,logging, json
 import time as t
 import threading as th
+from math import floor
 from source.db.db_real import DBReal
 from source.config.configP import config
+from source.log.utilLog import create_log
 from datetime import datetime, timedelta
 from source.takedata.TradingViewData import data_TradingV
 
 class trackingData():
+    pares=None
+    temps=None
     timer=None
     dataTake=None
-    pares=None
+    dataA=None
+    dataB=None
+    log=None
     def init():
         trackingData.UpdatePares()
         signal.signal(signal.SIGINT, trackingData.letsexit)
         signal.signal(signal.SIGTERM,trackingData.letsexit)
         DBReal.createTableData()
-        #print("Check: "+str(trackingData.pares))
-        t.sleep((60-t.time()%60)+0) #sleep to the start of next min
+        create_log("data","data","logs")
+        trackingData.log=logging.getLogger("data")
+        trackingData.log.info("Init Taken Data\n")
+        trackingData.dataA=trackingData.dataTake.get_indicators(trackingData.temps,config.getlist('DataTake','indicators'))
+        t.sleep(10)
+        #t.sleep((60-t.time()%60)+0) #sleep to the start of next min
         trackingData.run()
 
     def run():
-        trackingData.timer=th.Timer(60,trackingData.run)
+        trackingData.timer=th.Timer(10,trackingData.run)
         trackingData.timer.start()
         trackingData.getData()
-
-    def UpdatePares():
-        config.refresh()
-        new_pares=config.getlist('DataTake','data_crypto')
-        if(new_pares!=trackingData.pares):
-            print("Check: "+str(new_pares))
-        trackingData.pares=config.getlist('DataTake','data_crypto')
-        trackingData.dataTake=data_TradingV(cryptosymbol=trackingData.pares ,timeout=2)
-
-    def getData():
-        trys=0
-        intervals=trackingData.getIntervals()
-        validator=trackingData.resetValidator(intervals)
-        dataF=trackingData.dataTake.get_indicators(intervals,config.getlist('DataTake','indicators'))
-        print("NEW CYCLE ->"+str(intervals)+" - "+str(datetime.now()),end="\n")
-        trackingData.prinTitle(intervals)
-        while((int(t.time()%60)<config.getint('DataTake','secLimit'))and(trackingData.checkValidator(validator))):
-            t.sleep(5)
-            trys=trys+1
-            dataS=trackingData.dataTake.get_indicators(intervals,config.getlist('DataTake','indicators'))
-            if(dataF!=False and dataS != False):
-                validator=trackingData.checkDatas(dataF,dataS,validator)
-            if(dataS != False):
-                dataF=dataS
-        if(trackingData.checkValidator(validator)==True):
-            print("Error en Captura "+str(config.getint('DataTake','secLimit'))+"secL "+str(datetime.now()),end="\n")
-            trackingData.printValidator(validator)
-            print("")
-        else:
-            print("all Data was taken "+str(datetime.now()))
-        #Actulizar lista de pares 
-        trackingData.UpdatePares()
-
-    def prinTitle(temps):
-        print('{:^21}|{:^3}|'.format('PAR','N'),end="")
-        for temp in temps:
-            print('{:^30}|'.format(temp),end="")
-        print("")
-        print('{:^21}|{:^3}|'.format('PAR','N'),end="")
-        for x in range(len(temps)):
-            print('{:^10}|{:^10}|{:^8}|'.format('close','open','vol'),end="")
-        print ("")
-        
-    def printRow(val,data,par,intento):
-        print('{:^21}|{:^3}|'.format(par,intento),end="")
-        for temp in data[par]:
-            if(val[par][temp]==False):
-                print('{:^10}|{:^10}|{:^8}|'.format(data[par][temp]["close"],data[par][temp]["open"],round(data[par][temp]["volume"])),end="")
-            else:
-                print('{:^10}|{:^10}|{:^8}|'.format("--","Sended","--"),end="")
-        print(datetime.fromtimestamp(data['timestamp']).strftime('%H:%M %S.%f'),end="\n")
-
-    def checkDatas(first,second,validator):
-        for par in trackingData.pares:
-            trackingData.printRow(validator,first,par,1)
-            trackingData.printRow(validator,second,par,2)
-            print('{:^21}|{:^3}|'.format("Analisis",'R'),end="")
-            for temp in second[par]:
-                if((first[par][temp]['volume']>second[par][temp]['volume']) and (second[par][temp]['open']==second[par][temp]['close'])):
-                    if(validator[par][temp]==False):
-                        first[par][temp]['close']=second[par][temp]['open']
-                        validator[par][temp]=True
-                        trackingData.sendData(par,temp,first[par][temp],first['timestamp'])
-                        print('{:^10}|{:^10}|{:^8}|'.format("--SEND IT-",round(second[par][temp]["close"]-second[par][temp]["open"]),round(second[par][temp]["volume"]-first[par][temp]["volume"])),end="")            
-                    else:
-                        print('{:^10}|{:^10}|{:^8}|'.format("--!!--","--!!--","--!!--"),end="")
-                else:
-                    print('{:^10}|{:^10}|{:^8}|'.format("WAIT!!!",round(second[par][temp]["close"]-second[par][temp]["open"]),round(second[par][temp]["volume"]-first[par][temp]["volume"])),end="")            
-            print("")
-        return validator
-
-    def checkValidator(validator):
-        keepChecking=False
-        for par in validator:
-            for temp in validator[par]:
-                if(validator[par][temp]==False):
-                    keepChecking=True
-                    #print("Falta->"+par+temp+":"+str(validator[par][temp]),end="|")
-        #print("")
-        return keepChecking
     
-    def printValidator(validator):
-        keepChecking=False
-        for par in validator:
-            for temp in validator[par]:
-                if(validator[par][temp]==False):
-                    keepChecking=True
-                    print("Falta->"+par+temp+":"+str(validator[par][temp]),end=" | ")
-        #print("")
-        return keepChecking
+    def getData():
+        trackingData.log.info("----------\t\t\t----------\t\t\t----------\t\t\t----------\t\t\t----------\t\t\t----------\t\t\t----------\t\t\t----------\t\t\t----------\n")
+        trackingData.dataB=trackingData.dataTake.get_indicators(trackingData.temps,config.getlist('DataTake','indicators'))
+        trackingData.checkData()
+        trackingData.dataA=trackingData.dataB
 
-    def resetValidator(intervals):
-        validator={}
+    def checkData():
+        jsendData={}
         for par in trackingData.pares:
-            validator[par]={}
-            for temp in intervals:
-                validator[par][temp]=False
-        return validator
+            trackingData.logRows(par)
+            trackingData.log.info('{:^21}|{:^4}|'.format("Analisis",'R'))
+            for temp in trackingData.temps:
+                if((trackingData.dataA[par][temp]['volume']>trackingData.dataB[par][temp]['volume']) and (trackingData.dataB[par][temp]['open']==trackingData.dataB[par][temp]['close'])):
+                    trackingData.dataA[par][temp]['close']=trackingData.dataB[par][temp]['open']
+                    dTime=trackingData.getCandleTime(temp,trackingData.dataB['timestamp'])
+                    isSend=trackingData.sendData(par,temp,dTime,round(float(datetime.fromtimestamp(trackingData.dataB['timestamp']).strftime('%S.%f')),2),trackingData.dataA[par][temp])
+                    try:
+                        jsendData[par][temp]=dTime.strftime('%H:%M')+" "+str(isSend)
+                    except:
+                        jsendData[par]={}
+                        jsendData[par][temp]=dTime.strftime('%H:%M')+" "+str(isSend)
+                    trackingData.log.info('{:^30}|'.format(temp+" SEND IT- "+datetime.fromtimestamp(trackingData.dataB['timestamp']).strftime('%H:%M %S')))            
+                else:
+                    trackingData.log.info('{:^30}|'.format("No yet WAIT!!!"))            
+            trackingData.log.info(par+"\n")
+        if(len(jsendData)>0):
+            trackingData.printSents(jsendData)
+
+    def printSents(jData):
+        print("Cycle "+datetime.fromtimestamp(trackingData.dataB['timestamp']).strftime('%Y-%m-%d %H:%M %S')+"seg Sents...")
+        for par in jData:
+            for temp in jData[par]:
+                print('\t{:25} {:^5} {:10}'.format(par,temp,jData[par][temp]))
+
+    def logRows(par):
+        trackingData.logTitles(par)
+        trackingData.log.info('{:^21}|{:^4}|'.format(par,round(trackingData.dataA['timestamp']%60,1)))
+        for temp in trackingData.dataA[par]:
+            trackingData.log.info('{:^10}|{:^10}|{:^8}|'.format(trackingData.dataA[par][temp]["close"],trackingData.dataA[par][temp]["open"],floor(trackingData.dataA[par][temp]["volume"])))
+        trackingData.log.info(datetime.fromtimestamp(trackingData.dataA['timestamp']).strftime('%H:%M %S.%f')+"\n")
+        trackingData.log.info('{:^21}|{:^4}|'.format(par,round(trackingData.dataB['timestamp']%60,1)))
+        for temp in trackingData.dataB[par]:
+            trackingData.log.info('{:^10}|{:^10}|{:^8}|'.format(trackingData.dataB[par][temp]["close"],trackingData.dataB[par][temp]["open"],floor(trackingData.dataB[par][temp]["volume"])))
+        trackingData.log.info(datetime.fromtimestamp(trackingData.dataB['timestamp']).strftime('%H:%M %S.%f')+"\n")
+    
+    def logTitles(par):
+        trackingData.log.info('{:^21}|{:^4}|'.format(datetime.fromtimestamp(trackingData.dataA['timestamp']).strftime('%Y-%m %H:%M'),' '))
+        for temp in trackingData.temps:
+            trackingData.log.info('{:^30}|'.format(trackingData.getCandleTime(temp,trackingData.dataB['timestamp']).strftime('%H:%M')+" - "+temp))
+        trackingData.log.info(par+"\n")
+        trackingData.log.info('{:^21}|{:^4}|'.format('PAR','Seg'))
+        for x in range(len(trackingData.temps)):
+            trackingData.log.info('{:^10}|{:^10}|{:^8}|'.format('close','open','vol'))
+        trackingData.log.info(par+"\n")
 
     def getIntervals():
         min=int(t.time()/60)
@@ -140,45 +107,61 @@ class trackingData():
             return ['1m','5m']
         return ['1m']
 
-    def sendData(par,temp,data,timestamp):
-        dateTake=datetime.fromtimestamp(timestamp)
-        if(temp=="1m"):
-            candeltime = datetime(dateTake.year,dateTake.month,dateTake.day,dateTake.hour,dateTake.minute,0) - timedelta(minutes=1)
-        elif(temp=="5m"):
-            candeltime = datetime(dateTake.year,dateTake.month,dateTake.day,dateTake.hour,dateTake.minute,0) - timedelta(minutes=5)
-        elif(temp=="15m"):
-            candeltime = datetime(dateTake.year,dateTake.month,dateTake.day,dateTake.hour,dateTake.minute,0) - timedelta(minutes=15)
-        elif(temp=="30m"):
-            candeltime = datetime(dateTake.year,dateTake.month,dateTake.day,dateTake.hour,dateTake.minute,0) - timedelta(minutes=30)
-        elif(temp=="1h"):
-            candeltime = datetime(dateTake.year,dateTake.month,dateTake.day,dateTake.hour,dateTake.minute,0) - timedelta(hours=1)
-        elif(temp=="2h"):
-            candeltime = datetime(dateTake.year,dateTake.month,dateTake.day,dateTake.hour,dateTake.minute,0) - timedelta(hours=2)
-        elif(temp=="4h"):
-            candeltime = datetime(dateTake.year,dateTake.month,dateTake.day,dateTake.hour,dateTake.minute,0) - timedelta(hours=4)
-        else:
-            candeltime = datetime(dateTake.year,dateTake.month,dateTake.day,0,0,0)
-
+    def sendData(par,temp,date,segT,data):
         if(temp=='1m'):
             if(data['close']<data['low']):
                 data['low']=data['close']
 
         data['name']=par
         data['temp']=temp
-        data['dateT']=str(candeltime)
-        data['segT']=round(float(dateTake.strftime('%S.%f')),2)
-        DBReal.datatoDB(data)
-        return None
+        data['dateT']=str(date)
+        data['segT']=segT
+        isSave=DBReal.getData(data)
+        if(len(isSave)==0):
+            DBReal.datatoDB(data)
+            return True
+        else:
+            print(isSave)
+            print(data)
+            return False
+
+    def getCandleTime(temp,timestamp):
+        dateTake=datetime.fromtimestamp(timestamp)
+        if(temp=="1m"):
+            return datetime(dateTake.year,dateTake.month,dateTake.day,dateTake.hour,dateTake.minute,0) - timedelta(minutes=1)
+        elif(temp=="5m"):
+            return datetime(dateTake.year,dateTake.month,dateTake.day,dateTake.hour,5*floor(dateTake.minute/5),0) - timedelta(minutes=5)
+        elif(temp=="15m"):
+            return datetime(dateTake.year,dateTake.month,dateTake.day,dateTake.hour,15*floor(dateTake.minute/15),0) - timedelta(minutes=15)
+        elif(temp=="30m"):
+            return datetime(dateTake.year,dateTake.month,dateTake.day,dateTake.hour,30*floor(dateTake.minute/30),0) - timedelta(minutes=30)
+        elif(temp=="1h"):
+            return datetime(dateTake.year,dateTake.month,dateTake.day,dateTake.hour,0,0) - timedelta(hours=1)
+        elif(temp=="2h"):
+            return datetime(dateTake.year,dateTake.month,dateTake.day,dateTake.hour,0,0) - timedelta(hours=2)
+        elif(temp=="4h"):
+            return datetime(dateTake.year,dateTake.month,dateTake.day,dateTake.hour,0,0) - timedelta(hours=4)
+        else:
+            return datetime(dateTake.year,dateTake.month,dateTake.day,0,0,0)
+
+    def UpdatePares():
+        config.refresh()
+        new_pares=config.getlist('DataTake','data_crypto')
+        new_temps=config.getlist('DataTake','temps')
+        if(new_pares!=trackingData.pares):
+            print("Check: "+str(new_pares))
+        if(new_temps!=trackingData.temps):
+            print("Check temps: "+str(new_temps))
+        trackingData.temps=new_temps
+        trackingData.pares=new_pares
+        trackingData.dataTake=data_TradingV(cryptosymbol=trackingData.pares ,timeout=2)
 
     def letsexit(signum, frame):
         print ("\n\nTime to exit Main")
         sys.exit(0)
 
 if __name__ == '__main__':
-    #par=['BINANCE:BTCBUSDPERP','BINANCE:ETHBUSDPERP','BINANCE:BNBBUSDPERP','BINGX:BTCUSDT']
     trackingData.init()
-    #config.refresh()
-    #trackingData(pares=config.getlist('DataTake','data_crypto'),pprint=True)
    
 #INTERVAL_1_MINUTE = "1m"
 #INTERVAL_5_MINUTES = "5m"

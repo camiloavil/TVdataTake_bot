@@ -1,4 +1,6 @@
 config.cfg
+logs/
 source/config/__pycache__/
 source/takedata/__pycache__/
+source/log/__pycache__/
 source/db/__pycache__/

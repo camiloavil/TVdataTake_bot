@@ -15,7 +15,6 @@ class DBReal():
         return True
 
     def datatoDB(jdata):
-        #columns = ['name','temp','dateT','segT','close','open','high','low','BBupper','BBlower','RSI7','MACDmacd','MACDsignal','volume']
         columns=DBReal.getColumns()
         keys =  tuple(jdata[c] for c in columns[0])
         #print (str(keys))
@@ -29,6 +28,15 @@ class DBReal():
         jdata['id']=cursorDB.lastrowid
         mydb.close()
 
+    def getData(jData):
+        query="SELECT * FROM crypto.data WHERE temp='"+jData['temp']+"' and name='"+jData['name']+"' and dateT='"+str(jData['dateT'])+"';"
+        mydb = DBReal.getLocalConnector()
+        cursorDB = mydb.cursor()
+        cursorDB.execute(query)
+        myresult = cursorDB.fetchall()
+        mydb.close()
+        return myresult
+        
     def getColumns():
         #dbColumns=DBReal.getDBcolumns() #Obtener las cokumnas de la DB para compararlas y asi agregar comuna en la DB
         #ALTER TABLE vendors ADD COLUMN phone VARCHAR(15) AFTER name;
