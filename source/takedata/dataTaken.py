@@ -131,7 +131,7 @@ class trackingData():
             #print(str(jData[it])+" - "+str(dSaved[i]))
             if(it=='open' or it=='close' or it=='volume'):
                 if(jData[it]!=dSaved[i]):
-                    return "Error Datos diferentes"
+                    return "Error Datos diferentes "+str(it)
             if(it=='segT'):
                 if(jData[it]==dSaved[i]):
                     return "Repetido en la lista"
