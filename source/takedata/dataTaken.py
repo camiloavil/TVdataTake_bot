@@ -39,6 +39,7 @@ class trackingData():
         trackingData.dataB=trackingData.dataTake.get_indicators(trackingData.temps,config.getlist('DataTake','indicators'))
         trackingData.checkData()
         trackingData.dataA=trackingData.dataB
+        trackingData.UpdatePares()
 
     def checkData():
         jsendData={}
@@ -121,10 +122,24 @@ class trackingData():
             DBReal.datatoDB(data)
             return True
         else:
-            print(isSave)
-            print(data)
-            return False
+            res=trackingData.compareInfo(isSave[0],data)
+            return [False,res]
 
+    def compareInfo(dSaved,jData):
+        i=0
+        for it in jData:
+            #print(str(jData[it])+" - "+str(dSaved[i]))
+            if(it=='open' or it=='close' or it=='volume'):
+                if(jData[it]!=dSaved[i]):
+                    return "Error Datos diferentes"
+            if(it=='segT'):
+                if(jData[it]==dSaved[i]):
+                    return "Repetido en la lista"
+                else:
+                    return "already saved "+str(dSaved[i])+"s "+str(jData[it])+"s"
+            i=i+1
+        return "empty"
+  
     def getCandleTime(temp,timestamp):
         dateTake=datetime.fromtimestamp(timestamp)
         if(temp=="1m"):

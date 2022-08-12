@@ -29,7 +29,7 @@ class DBReal():
         mydb.close()
 
     def getData(jData):
-        query="SELECT * FROM crypto.data WHERE temp='"+jData['temp']+"' and name='"+jData['name']+"' and dateT='"+str(jData['dateT'])+"';"
+        query="SELECT close,open,high,low,volume,BBupper,BBlower,RSI7,MACDmacd,MACDsignal,name,temp,dateT,segT,id FROM crypto.data WHERE temp='"+jData['temp']+"' and name='"+jData['name']+"' and dateT='"+str(jData['dateT'])+"';"
         mydb = DBReal.getLocalConnector()
         cursorDB = mydb.cursor()
         cursorDB.execute(query)
