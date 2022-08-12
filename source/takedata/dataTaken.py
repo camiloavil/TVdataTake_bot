@@ -21,7 +21,8 @@ class trackingData():
         signal.signal(signal.SIGINT, trackingData.letsexit)
         signal.signal(signal.SIGTERM,trackingData.letsexit)
         DBReal.createTableData()
-        create_log("data","data","logs")
+        if(config.getboolean("DataTake","debug")): 
+            create_log("data","data","logs")
         trackingData.log=logging.getLogger("data")
         trackingData.log.info("Init Taken Data\n")
         trackingData.dataA=trackingData.dataTake.get_indicators(trackingData.temps,config.getlist('DataTake','indicators'))
