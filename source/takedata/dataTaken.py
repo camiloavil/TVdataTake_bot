@@ -128,18 +128,19 @@ class trackingData():
 
     def compareInfo(dSaved,jData):
         i=0
+        res="Error: "
         for it in jData:
             #print(str(jData[it])+" - "+str(dSaved[i]))
             if(it=='open' or it=='close' or it=='volume'):
                 if(jData[it]!=dSaved[i]):
-                    return "Error Datos diferentes "+str(it)
+                    res=res+str(it)+":"+str(dSaved[i])+"!="+str(jData[it])+" | "
             if(it=='segT'):
-                if(jData[it]==dSaved[i]):
-                    return "Repetido en la lista"
+                if(jData[it]!=dSaved[i]):
+                    res=res+"already saved "+str(dSaved[i])+"s "+str(jData[it])+"s"
                 else:
-                    return "already saved "+str(dSaved[i])+"s "+str(jData[it])+"s"
+                    return "Lista Repetida"
             i=i+1
-        return "empty"
+        return res
   
     def getCandleTime(temp,timestamp):
         dateTake=datetime.fromtimestamp(timestamp)
