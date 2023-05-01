@@ -1,12 +1,15 @@
-import sys, signal,logging, json
+import sys, signal,logging
 import time as t
-import threading as th
+import threading as th 
 from math import floor
+from deepdiff import DeepDiff
 from source.db.db_real import DBReal
 from source.config.configP import config
 from source.log.utilLog import create_log
 from datetime import datetime, timedelta
+from source.takedata.integrity import checkData
 from source.takedata.TradingViewData import data_TradingV
+from source.trading.structure import structure
 
 class trackingData():
     pares=None
@@ -48,7 +51,9 @@ class trackingData():
             trackingData.logRows(par)
             trackingData.log.info('{:^21}|{:^4}|'.format("Analisis",'R'))
             for temp in trackingData.temps:
-                if((trackingData.dataA[par][temp]['volume']>trackingData.dataB[par][temp]['volume']) and (trackingData.dataB[par][temp]['open']==trackingData.dataB[par][temp]['close'])):
+                if((trackingData.dataA[par][temp]['volume']>trackingData.dataB[par][temp]['volume']) and abs(trackingData.dataB[par][temp]['open']-trackingData.dataB[par][temp]['close'])<0.5):
+                #if((trackingData.dataA[par][temp]['volume']>trackingData.dataB[par][temp]['volume']) and (trackingData.dataB[par][temp]['open']==trackingData.dataB[par][temp]['close'])):
+                #if(trackingData.dataA[par][temp]['volume']>trackingData.dataB[par][temp]['volume']):
                     trackingData.dataA[par][temp]['close']=trackingData.dataB[par][temp]['open']
                     dTime=trackingData.getCandleTime(temp,trackingData.dataB['timestamp'])
                     isSend=trackingData.sendData(par,temp,dTime,round(float(datetime.fromtimestamp(trackingData.dataB['timestamp']).strftime('%S.%f')),2),trackingData.dataA[par][temp])
@@ -93,8 +98,6 @@ class trackingData():
 
     def getIntervals():
         min=int(t.time()/60)
-        #if(min%1440==0):
-        #    return ['1m','5m','15m','30m','1h','2h','4h','1d']
         if(min%240==0):
             return ['1m','5m','15m','30m','1h','2h','4h','1d']
         if(min%120==0):
@@ -116,30 +119,44 @@ class trackingData():
 
         data['name']=par
         data['temp']=temp
-        data['dateT']=str(date)
+        data['dateT']=date
         data['segT']=segT
-        isSave=DBReal.getData(data)
-        if(len(isSave)==0):
-            DBReal.datatoDB(data)
-            return True
+        dataSaved=DBReal.getData(data,20)
+        #for row in dataSaved:
+        #    print(row)
+        #print('----------------------------------------')
+        if(len(dataSaved)>0):
+            lastData=dataSaved[len(dataSaved)-1]
+            if(dataSaved[len(dataSaved)-1]['dateT']==date): #Dato Ya almacenado
+                #print("Data YA almacenada Revisar incongruencias")
+                res=trackingData.compareInfo(dataSaved[len(dataSaved)-1],data)
+                return [False,res]
+            else:
+                gaps=checkData.check_integrity(dataSaved,data) #check Integrity Existen Gaps en la DB?
+                if(gaps!=True):
+                    for gp in gaps:
+                        print("hay un Gap temporal en: "+str(gp['date'])+"\t"+str(gp['long']))
+                        arrayDataTOdb=getBinanceData.getData(data['name'],data['temp'],gp)
+                        lastData=structure.checkArray(arrayDataTOdb,gp['data'])
+                        DBReal.datatoDBArray(arrayDataTOdb)
         else:
-            res=trackingData.compareInfo(isSave[0],data)
-            return [False,res]
+            lastData=data
+        structure.check(lastData,data)
+        DBReal.datatoDB(data)
+        return [True,str(data['Type']+":"+str(data['open'])+" - "+str(data['close']))]
 
     def compareInfo(dSaved,jData):
-        i=0
+        #res=DeepDiff(dSaved,jData)
         res="Error: "
-        for it in jData:
-            #print(str(jData[it])+" - "+str(dSaved[i]))
-            if(it=='open' or it=='close' or it=='volume'):
-                if(jData[it]!=dSaved[i]):
-                    res=res+str(it)+":"+str(dSaved[i])+"!="+str(jData[it])+" | "
-            if(it=='segT'):
-                if(jData[it]!=dSaved[i]):
-                    res=res+"already saved "+str(dSaved[i])+"s "+str(jData[it])+"s"
+        for item in jData:  
+            if(item=='open' or item=='close' or item=='volume'):
+                if(jData[item]!=dSaved[item]):
+                    res=res+str(item)+":"+str(dSaved[item])+"!="+str(jData[item])+" | "
+            if(item=='segT'):
+                if(jData[item]!=dSaved[item]):
+                    res=res+"already saved "+str(dSaved[item])+"s "+str(jData[item])+"s"
                 else:
                     return "Lista Repetida"
-            i=i+1
         return res
   
     def getCandleTime(temp,timestamp):

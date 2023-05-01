@@ -11,6 +11,11 @@ class myconfig(configparser.ConfigParser):
         if(txt[0]!='[' or txt[-1]!=']'):
             return None
         return txt[1:-1].replace('\n','').split(',')
+    def getlisttxt(self,section,key):
+        txt=self[section][key]
+        if(txt[0]!='[' or txt[-1]!=']'):
+            return None
+        return txt[1:-1].replace('\n','')
     def getlistNumber(self,section,key):
         txt=self[section][key]
         if(txt[0]!='[' or txt[-1]!=']'):
